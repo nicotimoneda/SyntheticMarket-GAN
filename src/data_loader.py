@@ -3,58 +3,62 @@ import yfinance as yf
 import pandas as pd
 from datetime import datetime
 
-def download_data(ticker, start_date, end_date, save_dir='data/raw'):
+
+def download_data(
+    ticker: str, start_date: str, end_date: str, save_dir: str = "data/raw"
+) -> pd.DataFrame:
     """
-    Downloads historical stock data using yfinance and saves it to a CSV file.
+    Descarga datos históricos de acciones usando yfinance y los guarda en un archivo CSV.
 
     Args:
-        ticker (str): The stock ticker symbol (e.g., 'AAPL').
-        start_date (str): The start date in 'YYYY-MM-DD' format.
-        end_date (str): The end date in 'YYYY-MM-DD' format.
-        save_dir (str): The directory to save the CSV file. Defaults to 'data/raw'.
+        ticker (str): El símbolo del ticker de la acción (ej. 'AAPL').
+        start_date (str): La fecha de inicio en formato 'YYYY-MM-DD'.
+        end_date (str): La fecha de fin en formato 'YYYY-MM-DD'.
+        save_dir (str): El directorio para guardar el archivo CSV. Por defecto es 'data/raw'.
 
     Returns:
-        pd.DataFrame: The downloaded DataFrame.
+        pd.DataFrame: El DataFrame descargado.
     """
-    # Create the directory if it doesn't exist
+    # Crear el directorio si no existe
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
-        print(f"Created directory: {save_dir}")
+        print(f"Directorio creado: {save_dir}")
 
-    print(f"Downloading data for {ticker} from {start_date} to {end_date}...")
-    
-    # Download data
+    print(f"Descargando datos para {ticker} desde {start_date} hasta {end_date}...")
+
+    # Descargar datos
     try:
         df = yf.download(ticker, start=start_date, end=end_date, progress=False)
-        
+
         if df.empty:
-            print(f"No data found for {ticker} in the specified range.")
+            print(f"No se encontraron datos para {ticker} en el rango especificado.")
             return pd.DataFrame()
 
-        # Construct filename
+        # Construir nombre de archivo
         filename = f"{ticker}_{start_date}_{end_date}.csv"
         filepath = os.path.join(save_dir, filename)
 
-        # Save to CSV
+        # Guardar en CSV
         df.to_csv(filepath)
-        print(f"Data saved to {filepath}")
+        print(f"Datos guardados en {filepath}")
 
         return df
 
     except Exception as e:
-        print(f"An error occurred while downloading data for {ticker}: {e}")
+        print(f"Ocurrió un error al descargar datos para {ticker}: {e}")
         return pd.DataFrame()
 
-if __name__ == '__main__':
-    # Test the function with AAPL
-    ticker_symbol = 'AAPL'
-    start = '2015-01-01'
-    end = datetime.today().strftime('%Y-%m-%d')    
+
+if __name__ == "__main__":
+    # Probar la función con AAPL
+    ticker_symbol = "AAPL"
+    start = "2015-01-01"
+    end = datetime.today().strftime("%Y-%m-%d")
 
     df_aapl = download_data(ticker_symbol, start, end)
-    
+
     if not df_aapl.empty:
-        print("\nHead of the downloaded data:")
-        print(df_aapl.head())   
-        print("\nShape of the downloaded data:")
-        print(df_aapl.shape)    
+        print("\nEncabezado de los datos descargados:")
+        print(df_aapl.head())
+        print("\nForma de los datos descargados:")
+        print(df_aapl.shape)
