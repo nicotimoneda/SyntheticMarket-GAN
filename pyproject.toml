@@ -11,6 +11,9 @@ dependencies = [
     "scikit-learn",
     "matplotlib",
     "seaborn",
+    "tqdm>=4.67.1",
+    "ipykernel>=6.31.0",
+    "joblib>=1.5.2",
 ]
 
 [build-system]
