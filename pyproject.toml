@@ -1,7 +1,7 @@
 [project]
 name = "synthetic-market-gan"
 version = "0.1.0"
-description = "Data Science project for Synthetic Market GAN"
+description = "Synthetic financial time-series generation with a Wasserstein GAN (WGAN-GP)"
 requires-python = ">=3.9"
 dependencies = [
     "torch",

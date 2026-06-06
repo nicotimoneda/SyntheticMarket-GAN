@@ -19,7 +19,7 @@ A study in generating realistic stock-price sequences — and in the part nobody
 
 A from-scratch implementation of a **Wasserstein GAN with Gradient Penalty (WGAN-GP)** that learns to generate synthetic daily price windows for a single equity (**AAPL**, 2015–2025).
 
-The interesting problem isn't the generator — it's *stability*. Vanilla GANs on financial series collapse fast: the discriminator wins, gradients vanish, and the generator gives up. WGAN-GP swaps the discriminator for a **critic** that estimates the Wasserstein distance under a soft 1-Lipschitz constraint (the gradient penalty), which keeps gradients informative throughout training. This repo is the apparatus for studying that — recurrent generator and critic, a reproducible data pipeline, and a distribution-level evaluation harness rather than a glance at the loss curve.
+The interesting problem isn't the generator — it's *stability*. Vanilla GANs on financial series collapse fast: the discriminator wins, gradients vanish, and the generator gives up. WGAN-GP swaps the discriminator for a **critic** that estimates the Wasserstein distance under a soft 1-Lipschitz constraint (the gradient penalty), which keeps gradients informative throughout training. This repo is the apparatus for studying that — a recurrent generator and critic, a reproducible data pipeline, and a distribution-level evaluation harness rather than a glance at the loss curve.
 
 ---
 
@@ -29,10 +29,15 @@ Both networks are **stacked 2-layer LSTMs** (not bidirectional) so they model th
 
 | Component | Input | Core | Output |
 |-----------|-------|------|--------|
-| **Generator** | noise `z ∈ (B, 24, 10)` | LSTM `hidden=64, layers=2, dropout=0.2` | `Linear → (B, 24, 1)` sequence |
+| **Generator** | noise `z ∈ (B, 24, 10)` | LSTM `hidden=64, layers=2, dropout=0.2` | `Linear → Sigmoid → (B, 24, 1)` in `[0,1]` |
 | **Critic** | sequence `(B, 24, 1)` | LSTM `hidden=64, layers=2, dropout=0.2` | `Linear(last hidden) → (B, 1)` scalar score |
 
-The critic outputs a raw score — **no sigmoid** — because in the Wasserstein formulation it estimates a distance, not a probability. The 1-Lipschitz constraint is enforced softly via a gradient penalty on interpolations between real and generated samples.
+The generator ends in a **sigmoid** to match the `MinMax[0,1]` scaling of the data. The critic outputs a raw score — **no sigmoid** — because in the Wasserstein formulation it estimates a distance, not a probability. The 1-Lipschitz constraint is enforced softly via a gradient penalty on interpolations between real and generated samples:
+
+```
+L_critic = −( E[C(x_real)] − E[C(x_fake)] ) + λ · E[(‖∇ C(x̂)‖₂ − 1)²]
+L_gen    = − E[C(x_fake)]
+```
 
 **Training setup**
 
@@ -60,14 +65,30 @@ The pipeline is modular and reproducible: `data_loader.py` pulls history from Ya
 
 ---
 
-### 📊 Evaluation approach
+### 📊 Results
 
-Synthetic quality is judged at the **distribution level**, not by eyeballing loss curves:
+Trained on AAPL daily closes (2015–2025), evaluated on **500 real vs. 500 generated** windows.
 
-- **PCA** and **t-SNE** project real and generated windows into 2-D to compare how the two populations occupy the feature space.
-- **Statistical comparison** of value and 1-step-return distributions between real and synthetic samples.
+**Generated windows look like real ones** — same level structure and overall smoothness, with more variety in starting points:
 
-The evaluation notebooks (`04_Evaluation_Metrics.ipynb`, `06_WGAN_GP.ipynb`) generate 500 synthetic windows and overlay them against 500 sampled real windows for each of these views.
+![Real vs synthetic windows](assets/samples.png)
+
+**The populations overlap.** In PCA and t-SNE space the synthetic cloud sits on top of the real one rather than clustering off on its own — evidence the model learned the distribution instead of collapsing to a few modes:
+
+![PCA and t-SNE](assets/pca_tsne.png)
+
+**Marginals match closely; step-to-step dynamics are the harder part.** The value distribution overlaps almost exactly; the generator's one-step returns come out noisier than the real series — the model nails *where* prices sit better than the fine-grained day-to-day path:
+
+![Distributions](assets/distributions.png)
+
+| Statistic | Real | Synthetic |
+|---|---:|---:|
+| Mean (scaled) | 0.324 | 0.360 |
+| Std (scaled) | 0.285 | 0.276 |
+| 1-step return std | 0.009 | 0.039 |
+| Lag-1 autocorrelation | 0.747 | 0.462 |
+
+**Honest read:** the marginal distribution and overall structure are captured well (matching mean/std, strong PCA/t-SNE overlap); the temporal autocorrelation is only partially captured — synthetic windows are jaggier than real ones. Closing that gap is the headline item on the roadmap.
 
 ---
 
@@ -98,6 +119,7 @@ The trained generator is saved to `models/generator_wgan.pth`.
 
 ```text
 SyntheticMarket-GAN/
+├── assets/                       # Figures used in this README
 ├── data/
 │   ├── raw/                      # OHLCV pulled from Yahoo Finance
 │   └── processed/                # MinMax-scaled series + fitted scaler
@@ -117,11 +139,13 @@ SyntheticMarket-GAN/
 └── uv.lock                       # Exact, reproducible lockfile
 ```
 
+The numbered notebooks trace the full journey: EDA → a first vanilla GAN → diagnosing its instability → the WGAN-GP that fixed it.
+
 ---
 
 ### 🗺️ Roadmap
 
-- [ ] Bound the generator output to the scaled domain (output activation) and re-tune for tighter real/synthetic overlap
+- [ ] Add a temporal-correlation / moment-matching loss term to close the autocorrelation gap
 - [ ] Add quantitative fidelity metrics (e.g. discriminative & predictive scores à la TimeGAN)
 - [ ] Generalize the pipeline to multivariate OHLCV and arbitrary tickers
 - [ ] Package training as a CLI script alongside the notebooks
