@@ -2,162 +2,89 @@
 
 # 📈 SyntheticMarket-GAN
 
-**Synthesizing financial time series with a Wasserstein GAN (WGAN-GP).**
+**A WGAN-GP that generates synthetic AAPL price windows — with an honest account of where it works and where it doesn't.**
 
-A study in generating realistic stock-price sequences — and in the part nobody puts on the slides: getting adversarial training to converge at all.
-
-![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)
-![uv](https://img.shields.io/badge/uv-managed-DE5FE9?style=for-the-badge&logo=astral&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-1A7F37?style=for-the-badge)
+[![CI](https://github.com/nicotimoneda/SyntheticMarket-GAN/actions/workflows/ci.yml/badge.svg)](https://github.com/nicotimoneda/SyntheticMarket-GAN/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
+![PyTorch](https://img.shields.io/badge/PyTorch-2.x-EE4C2C?logo=pytorch&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-1A7F37)
 
 </div>
 
 ---
 
-### What this is
+## Summary
 
-A from-scratch implementation of a **Wasserstein GAN with Gradient Penalty (WGAN-GP)** that learns to generate synthetic daily price windows for a single equity (**AAPL**, 2015–2025).
+Backtesting a strategy on the same history used to build it overfits to one realised path. Synthetic price data is one remedy — but generating *realistic* financial series is hard. This project implements a **Wasserstein GAN with Gradient Penalty (WGAN-GP)** with unidirectional-LSTM generator and critic to produce 24-day AAPL price windows. The headline finding is honest: the model **avoids mode collapse and matches the marginal price distribution** (PCA/t-SNE overlap strongly), but its **day-to-day volatility is ~4× too high** — the metric that PCA and t-SNE silently miss.
 
-The interesting problem isn't the generator — it's *stability*. Vanilla GANs on financial series collapse fast: the discriminator wins, gradients vanish, and the generator gives up. WGAN-GP swaps the discriminator for a **critic** that estimates the Wasserstein distance under a soft 1-Lipschitz constraint (the gradient penalty), which keeps gradients informative throughout training. This repo is the apparatus for studying that — a recurrent generator and critic, a reproducible data pipeline, and a distribution-level evaluation harness rather than a glance at the loss curve.
+## Results
 
----
+Validation on 500 real vs. 500 synthetic windows (`models/generator_wgan.pth`, seed 42):
 
-### 🧠 Architecture
+| Metric | Real | Synthetic | Notes |
+|---|---:|---:|---|
+| PCA — PC1 explained variance | — | **98.8%** | PC1 ≈ price level; clouds overlap |
+| t-SNE (perplexity=30) | — | — | adjacent ridges, **no mode collapse** |
+| Step-to-step std | **0.009** | **0.039** | the key failure |
+| Ratio (synthetic / real) | 1× | **~4.3×** | synthetic paths too noisy |
 
-Both networks are **stacked 2-layer LSTMs** (not bidirectional) so they model the temporal structure of a price window directly.
+<div align="center">
+<img src="assets/pca.png" width="46%" alt="PCA real vs synthetic"/>
+<img src="assets/tsne.png" width="46%" alt="t-SNE real vs synthetic"/>
+</div>
 
-| Component | Input | Core | Output |
-|-----------|-------|------|--------|
-| **Generator** | noise `z ∈ (B, 24, 10)` | LSTM `hidden=64, layers=2, dropout=0.2` | `Linear → Sigmoid → (B, 24, 1)` in `[0,1]` |
-| **Critic** | sequence `(B, 24, 1)` | LSTM `hidden=64, layers=2, dropout=0.2` | `Linear(last hidden) → (B, 1)` scalar score |
+> PCA and t-SNE reduce each window to a single point, so they report good overlap while the *path* inside each window is wrong. The step-to-step std is what exposes it.
 
-The generator ends in a **sigmoid** to match the `MinMax[0,1]` scaling of the data. The critic outputs a raw score — **no sigmoid** — because in the Wasserstein formulation it estimates a distance, not a probability. The 1-Lipschitz constraint is enforced softly via a gradient penalty on interpolations between real and generated samples:
+## Quick start
 
-```
-L_critic = −( E[C(x_real)] − E[C(x_fake)] ) + λ · E[(‖∇ C(x̂)‖₂ − 1)²]
-L_gen    = − E[C(x_fake)]
-```
-
-**Training setup**
-
-| Hyperparameter | Value |
-|----------------|-------|
-| Sequence length | 24 days |
-| Noise dimension | 10 |
-| Batch size | 64 |
-| Optimizer | Adam, `lr=1e-4`, `betas=(0.0, 0.9)` |
-| Gradient-penalty λ | 10 |
-| Critic steps per generator step | 5 |
-| Epochs | 200 |
-
-> `betas=(0.0, 0.9)` and the 5:1 critic-to-generator ratio are the canonical WGAN-GP settings — momentum on the first moment tends to destabilize the critic.
-
----
-
-### 🔧 Data pipeline
-
-```
-yfinance ─▶ raw OHLCV CSV ─▶ select Close ─▶ MinMax[0,1] ─▶ sliding windows (len 24) ─▶ tensors
-```
-
-The pipeline is modular and reproducible: `data_loader.py` pulls history from Yahoo Finance, `preprocessing.py` scales and windows it, and `make_dataset.py` orchestrates the two and persists both the scaled series and the fitted scaler (so generated samples can be mapped back to price space).
-
----
-
-### 📊 Results
-
-Trained on AAPL daily closes (2015–2025), evaluated on **500 real vs. 500 generated** windows.
-
-**Generated windows look like real ones** — same level structure and overall smoothness, with more variety in starting points:
-
-![Real vs synthetic windows](assets/samples.png)
-
-**The populations overlap.** In PCA and t-SNE space the synthetic cloud sits on top of the real one rather than clustering off on its own — evidence the model learned the distribution instead of collapsing to a few modes:
-
-![PCA and t-SNE](assets/pca_tsne.png)
-
-**Marginals match closely; step-to-step dynamics are the harder part.** The value distribution overlaps almost exactly; the generator's one-step returns come out noisier than the real series — the model nails *where* prices sit better than the fine-grained day-to-day path:
-
-![Distributions](assets/distributions.png)
-
-| Statistic | Real | Synthetic |
-|---|---:|---:|
-| Mean (scaled) | 0.324 | 0.360 |
-| Std (scaled) | 0.285 | 0.276 |
-| 1-step return std | 0.009 | 0.039 |
-| Lag-1 autocorrelation | 0.747 | 0.462 |
-
-**Honest read:** the marginal distribution and overall structure are captured well (matching mean/std, strong PCA/t-SNE overlap); the temporal autocorrelation is only partially captured — synthetic windows are jaggier than real ones. Closing that gap is the headline item on the roadmap.
-
----
-
-### 🚀 Quickstart
-
-This project uses [**uv**](https://github.com/astral-sh/uv) for fast, reproducible environments.
+Requires [`uv`](https://github.com/astral-sh/uv).
 
 ```bash
-# 1. Clone
-git clone https://github.com/nicotimoneda/SyntheticMarket-GAN.git
-cd SyntheticMarket-GAN
-
-# 2. Create the environment from the lockfile
-uv sync
-
-# 3. Build the dataset (downloads + scales + windows AAPL)
-uv run python src/make_dataset.py
-
-# 4. Train and evaluate
-uv run jupyter notebook notebooks/06_WGAN_GP.ipynb
+uv sync                                              # install deps + package
+python scripts/train.py                              # train (paper: 200 epochs, seed 42)
+python scripts/evaluate.py --weights models/generator_wgan.pth   # figures + metrics.csv
 ```
 
-The trained generator is saved to `models/generator_wgan.pth`.
+The paper numbers above reproduce from the shipped weights with `scripts/evaluate.py`. Use `--epochs 2` for a fast smoke run of training.
 
----
+## Stack
 
-### 📂 Project structure
+Python 3.11 · PyTorch · uv · pytest · ruff · GitHub Actions
+
+## Repository structure
 
 ```text
 SyntheticMarket-GAN/
-├── assets/                       # Figures used in this README
-├── data/
-│   ├── raw/                      # OHLCV pulled from Yahoo Finance
-│   └── processed/                # MinMax-scaled series + fitted scaler
-├── models/                       # Saved generator checkpoints (.pth)
-├── notebooks/                    # End-to-end experimentation pipeline
-│   ├── 01_Exploratory_Data_Analysis.ipynb
-│   ├── 02_Model_Definition.ipynb
-│   ├── 03_Training_Loop.ipynb
-│   ├── 04_Evaluation_Metrics.ipynb
-│   ├── 05_Improved_GAN.ipynb
-│   └── 06_WGAN_GP.ipynb          # ⭐ Main notebook (WGAN-GP)
-├── src/
-│   ├── data_loader.py            # Yahoo Finance download
-│   ├── preprocessing.py          # Scaling + sliding-window sequences
-│   └── make_dataset.py           # Data pipeline orchestration
-├── pyproject.toml                # Dependencies
-└── uv.lock                       # Exact, reproducible lockfile
+├── src/syntheticmarket/
+│   ├── data/loader.py            # yfinance + MinMax[0,1] + sliding window (24, step 1)
+│   ├── models/generator.py       # 2-layer unidirectional LSTM → Linear → Sigmoid
+│   ├── models/critic.py          # 2-layer unidirectional LSTM → Linear (scalar score)
+│   ├── training/gradient_penalty.py
+│   ├── training/trainer.py       # WGAN-GP loop (Adam β1=0, λ=10, n_critic=5)
+│   └── evaluation/               # PCA + t-SNE, step-to-step metrics
+├── scripts/train.py              # CLI: --epochs --seed --output-dir
+├── scripts/evaluate.py           # CLI: --weights → figures + metrics.csv
+├── notebooks/01_paper_reproduction.ipynb   # reproduces the blog-post plots
+├── tests/                        # data / models / gradient penalty / metrics
+├── models/generator_wgan.pth     # published baseline weights
+└── .github/workflows/ci.yml      # ruff + pytest on Python 3.11
 ```
 
-The numbered notebooks trace the full journey: EDA → a first vanilla GAN → diagnosing its instability → the WGAN-GP that fixed it.
+## Known limitations
 
----
+The five fixable limitations reported in the blog post, verbatim:
 
-### 🗺️ Roadmap
+1. **Single-feature input.** The model uses Close price only. Real financial dynamics include volume, the Open-High-Low spread, and volatility clustering. Adding log-returns (which are stationary and more amenable to modeling than raw prices) and volume would give the model access to the joint structure that drives realistic price paths.
+2. **Validation is visual only.** PCA and t-SNE are useful but qualitative. Discriminative Score and Predictive Score from the TimeGAN paper, ACF comparison between real and synthetic returns, and TSTR (Train on Synthetic, Test on Real) are the standard quantitative benchmarks. These would convert "the plots look reasonable" into reproducible numbers.
+3. **Critic design.** `h_n[-1]` is the strongest candidate for why temporal smoothness is not captured. The natural ablation is to replace the final-state pooling with mean pooling across all LSTM outputs, or to add a secondary loss term on step-to-step differences directly.
+4. **MinMax scaler fitted on full dataset.** The scaler should be fit on the training split only. The current implementation leaks future price range information into the scaler bounds.
+5. **No checkpointing.** Training is fixed at 200 epochs with no best-model saving. The reported model is the last-epoch model, not the epoch that minimized the Wasserstein estimate. Adding checkpointing based on the critic loss would almost certainly improve results.
 
-- [ ] Add a temporal-correlation / moment-matching loss term to close the autocorrelation gap
-- [ ] Add quantitative fidelity metrics (e.g. discriminative & predictive scores à la TimeGAN)
-- [ ] Generalize the pipeline to multivariate OHLCV and arbitrary tickers
-- [ ] Package training as a CLI script alongside the notebooks
+## References & links
 
----
+- I. Gulrajani, F. Ahmed, M. Arjovsky, V. Dumoulin, A. Courville. *Improved Training of Wasserstein GANs* (2017), NeurIPS 2017.
+- 📝 Blog post (full write-up & validation): **[WGAN-GP on AAPL: when PCA looks fine but step-by-step volatility is 4× off](https://nicotimoneda.substack.com/p/wgan-gp-on-aapl-when-pca-looks-fine)**
 
-### 📝 License
+## License
 
 MIT — see [`LICENSE`](LICENSE).
-
----
-
-<div align="center">
-  <sub>Built by Nicolás Timoneda · "The interesting part of a GAN is the part where it doesn't train."</sub>
-</div>
