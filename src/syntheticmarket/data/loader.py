@@ -12,13 +12,15 @@ from __future__ import annotations
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 
-# Paper defaults (do not change).
-DEFAULT_TICKER = "AAPL"
-DEFAULT_START = "2015-01-01"
-DEFAULT_END = "2025-11-29"
-SEQ_LEN = 24
-STEP = 1
-FEATURE_RANGE = (0.0, 1.0)
+from syntheticmarket import config
+
+# Paper defaults (do not change) — re-exported from :mod:`syntheticmarket.config`.
+DEFAULT_TICKER = config.TICKER
+DEFAULT_START = config.START_DATE
+DEFAULT_END = config.END_DATE
+SEQ_LEN = config.SEQ_LEN
+STEP = config.WINDOW_STEP
+FEATURE_RANGE = config.FEATURE_RANGE
 
 
 def download_close_prices(
@@ -58,8 +60,12 @@ def make_sliding_windows(
     """Turn a 1-D series into overlapping windows of shape ``(N, seq_len, 1)``."""
     series = np.asarray(series, dtype="float32").reshape(-1)
     if series.shape[0] < seq_len:
-        raise ValueError(f"Series length {series.shape[0]} shorter than seq_len {seq_len}.")
-    windows = [series[i : i + seq_len] for i in range(0, len(series) - seq_len + 1, step)]
+        raise ValueError(
+            f"Series length {series.shape[0]} shorter than seq_len {seq_len}."
+        )
+    windows = [
+        series[i : i + seq_len] for i in range(0, len(series) - seq_len + 1, step)
+    ]
     arr = np.stack(windows).astype("float32")
     return arr[:, :, None]  # (N, seq_len, 1)
 

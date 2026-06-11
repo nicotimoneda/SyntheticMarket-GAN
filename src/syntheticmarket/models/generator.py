@@ -13,12 +13,14 @@ from __future__ import annotations
 import torch
 from torch import nn
 
-# Paper defaults (do not change — these reproduce the published results).
-NOISE_DIM = 10
-HIDDEN_DIM = 64
-FEATURE_DIM = 1
-NUM_LAYERS = 2
-DROPOUT = 0.2
+from syntheticmarket import config
+
+# Paper defaults (do not change) — re-exported from :mod:`syntheticmarket.config`.
+NOISE_DIM = config.NOISE_DIM
+HIDDEN_DIM = config.HIDDEN_DIM
+FEATURE_DIM = config.FEATURE_DIM
+NUM_LAYERS = config.NUM_LAYERS
+DROPOUT = config.DROPOUT
 
 
 class Generator(nn.Module):

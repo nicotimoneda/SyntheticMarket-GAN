@@ -18,6 +18,7 @@ import torch
 from torch import optim
 from torch.utils.data import DataLoader, TensorDataset
 
+from syntheticmarket import config as paper
 from syntheticmarket.models.critic import Critic
 from syntheticmarket.models.generator import Generator
 from syntheticmarket.training.gradient_penalty import compute_gradient_penalty
@@ -27,17 +28,17 @@ from syntheticmarket.training.gradient_penalty import compute_gradient_penalty
 class TrainConfig:
     """WGAN-GP hyperparameters (paper defaults)."""
 
-    seq_len: int = 24
-    noise_dim: int = 10
-    hidden_dim: int = 64
-    feature_dim: int = 1
-    batch_size: int = 64
-    num_epochs: int = 200
-    lr: float = 1e-4
-    beta1: float = 0.0
-    beta2: float = 0.9
-    lambda_gp: float = 10.0
-    n_critic: int = 5
+    seq_len: int = paper.SEQ_LEN
+    noise_dim: int = paper.NOISE_DIM
+    hidden_dim: int = paper.HIDDEN_DIM
+    feature_dim: int = paper.FEATURE_DIM
+    batch_size: int = paper.BATCH_SIZE
+    num_epochs: int = paper.NUM_EPOCHS
+    lr: float = paper.LR
+    beta1: float = paper.BETA1
+    beta2: float = paper.BETA2
+    lambda_gp: float = paper.LAMBDA_GP
+    n_critic: int = paper.N_CRITIC
 
 
 def set_seed(seed: int) -> None:
@@ -80,7 +81,9 @@ def train(
         hidden_dim=config.hidden_dim,
         feature_dim=config.feature_dim,
     ).to(device)
-    critic = Critic(feature_dim=config.feature_dim, hidden_dim=config.hidden_dim).to(device)
+    critic = Critic(feature_dim=config.feature_dim, hidden_dim=config.hidden_dim).to(
+        device
+    )
 
     betas = (config.beta1, config.beta2)
     opt_g = optim.Adam(generator.parameters(), lr=config.lr, betas=betas)
@@ -97,10 +100,15 @@ def train(
 
             # --- N_CRITIC critic updates per generator update ---
             for _ in range(config.n_critic):
-                z = torch.randn(batch_size, config.seq_len, config.noise_dim, device=device)
+                z = torch.randn(
+                    batch_size, config.seq_len, config.noise_dim, device=device
+                )
                 fake = generator(z).detach()
                 gp = compute_gradient_penalty(critic, real_batch, fake, device)
-                loss_c = -(critic(real_batch).mean() - critic(fake).mean()) + config.lambda_gp * gp
+                loss_c = (
+                    -(critic(real_batch).mean() - critic(fake).mean())
+                    + config.lambda_gp * gp
+                )
                 opt_c.zero_grad()
                 loss_c.backward()
                 opt_c.step()
