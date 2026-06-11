@@ -19,6 +19,7 @@ models/*.pth
 
 # Evaluation outputs
 outputs/
+checkpoints/
 
 # OS
 .DS_Store

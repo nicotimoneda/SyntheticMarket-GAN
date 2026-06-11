@@ -16,8 +16,12 @@ from syntheticmarket.training.trainer import TrainConfig, train
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Train the WGAN-GP on AAPL price windows.")
-    parser.add_argument("--epochs", type=int, default=200, help="Number of training epochs.")
+    parser = argparse.ArgumentParser(
+        description="Train the WGAN-GP on AAPL price windows."
+    )
+    parser.add_argument(
+        "--epochs", type=int, default=200, help="Number of training epochs."
+    )
     parser.add_argument("--seed", type=int, default=42, help="Random seed.")
     parser.add_argument(
         "--output-dir",
@@ -25,7 +29,9 @@ def parse_args() -> argparse.Namespace:
         default=Path("models"),
         help="Directory to save generator_wgan.pth.",
     )
-    parser.add_argument("--device", type=str, default="cpu", help="Torch device (cpu/cuda).")
+    parser.add_argument(
+        "--device", type=str, default="cpu", help="Torch device (cpu/cuda)."
+    )
     return parser.parse_args()
 
 
