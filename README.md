@@ -7,7 +7,10 @@
 [![CI](https://github.com/nicotimoneda/SyntheticMarket-GAN/actions/workflows/ci.yml/badge.svg)](https://github.com/nicotimoneda/SyntheticMarket-GAN/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
 ![PyTorch](https://img.shields.io/badge/PyTorch-2.x-EE4C2C?logo=pytorch&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-15%20passing-1A7F37?logo=pytest&logoColor=white)
+![Ruff](https://img.shields.io/badge/lint-ruff-D7FF64?logo=ruff&logoColor=black)
 ![License](https://img.shields.io/badge/License-MIT-1A7F37)
+[![Blog post](https://img.shields.io/badge/Substack-write--up-FF6719?logo=substack&logoColor=white)](https://nicotimoneda.substack.com/p/wgan-gp-on-aapl-when-pca-looks-fine)
 
 </div>
 
