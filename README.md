@@ -45,7 +45,7 @@ Requires [`uv`](https://github.com/astral-sh/uv).
 ```bash
 uv sync                                              # install deps + package
 python scripts/train.py                              # train (paper: 200 epochs, seed 42)
-python scripts/evaluate.py --weights models/generator_wgan.pth   # figures + metrics.csv
+python scripts/evaluate.py --weights-dir models    # figures + metrics.csv
 ```
 
 The paper numbers above reproduce from the shipped weights with `scripts/evaluate.py`. Use `--epochs 2` for a fast smoke run of training.
@@ -62,11 +62,12 @@ SyntheticMarket-GAN/
 │   ├── data/loader.py            # yfinance + MinMax[0,1] + sliding window (24, step 1)
 │   ├── models/generator.py       # 2-layer unidirectional LSTM → Linear → Sigmoid
 │   ├── models/critic.py          # 2-layer unidirectional LSTM → Linear (scalar score)
+│   ├── config.py                 # paper constants (single source of truth)
 │   ├── training/gradient_penalty.py
 │   ├── training/trainer.py       # WGAN-GP loop (Adam β1=0, λ=10, n_critic=5)
 │   └── evaluation/               # PCA + t-SNE, step-to-step metrics
 ├── scripts/train.py              # CLI: --epochs --seed --output-dir
-├── scripts/evaluate.py           # CLI: --weights → figures + metrics.csv
+├── scripts/evaluate.py           # CLI: --weights-dir → figures + metrics.csv
 ├── notebooks/01_paper_reproduction.ipynb   # reproduces the blog-post plots
 ├── tests/                        # data / models / gradient penalty / metrics
 ├── models/generator_wgan.pth     # published baseline weights
