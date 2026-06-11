@@ -10,13 +10,15 @@ import numpy as np
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 
+from syntheticmarket import config
+
 
 def _flatten(sequences: np.ndarray) -> np.ndarray:
     arr = np.asarray(sequences, dtype="float32")
     return arr.reshape(arr.shape[0], -1)
 
 
-def pca_2d(sequences: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def pca_analysis(sequences: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Project sequences to 2-D with PCA.
 
     Returns ``(coords, explained_variance_ratio)`` where ``coords`` is
@@ -28,11 +30,11 @@ def pca_2d(sequences: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return coords, pca.explained_variance_ratio_
 
 
-def tsne_2d(
+def tsne_analysis(
     sequences: np.ndarray,
-    perplexity: float = 30.0,
-    max_iter: int = 1000,
-    seed: int = 42,
+    perplexity: float = config.TSNE_PERPLEXITY,
+    max_iter: int = config.TSNE_MAX_ITER,
+    seed: int = config.SEED,
 ) -> np.ndarray:
     """Project sequences to 2-D with t-SNE (perplexity=30, max_iter=1000)."""
     flat = _flatten(sequences)

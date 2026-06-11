@@ -5,7 +5,7 @@ writes ``pca.png``, ``tsne.png`` and ``metrics.csv`` to the output directory.
 
 Example
 -------
-    python scripts/evaluate.py --weights models/generator_wgan.pth
+    python scripts/evaluate.py --weights-dir models
 """
 
 from __future__ import annotations
@@ -22,7 +22,10 @@ import numpy as np  # noqa: E402
 import torch  # noqa: E402
 
 from syntheticmarket.data.loader import SEQ_LEN, load_price_windows  # noqa: E402
-from syntheticmarket.evaluation.dimreduction import pca_2d, tsne_2d  # noqa: E402
+from syntheticmarket.evaluation.dimreduction import (  # noqa: E402
+    pca_analysis,
+    tsne_analysis,
+)
 from syntheticmarket.evaluation.metrics import summary_metrics  # noqa: E402
 from syntheticmarket.models.generator import NOISE_DIM, Generator  # noqa: E402
 from syntheticmarket.training.trainer import set_seed  # noqa: E402
@@ -33,19 +36,35 @@ SYNTH_COLOR = "#EE4C2C"
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Evaluate a trained generator.")
-    parser.add_argument("--weights", type=Path, required=True, help="Path to generator .pth.")
-    parser.add_argument("--n-samples", type=int, default=500, help="Real/synthetic sample count.")
+    parser.add_argument(
+        "--weights-dir",
+        type=Path,
+        default=Path("models"),
+        help="Directory containing generator_wgan.pth.",
+    )
+    parser.add_argument(
+        "--n-samples", type=int, default=500, help="Real/synthetic sample count."
+    )
     parser.add_argument("--seed", type=int, default=42, help="Random seed.")
     parser.add_argument(
-        "--output-dir", type=Path, default=Path("outputs"), help="Where to write figures + CSV."
+        "--output-dir",
+        type=Path,
+        default=Path("outputs"),
+        help="Where to write figures + CSV.",
     )
-    parser.add_argument("--device", type=str, default="cpu", help="Torch device (cpu/cuda).")
+    parser.add_argument(
+        "--device", type=str, default="cpu", help="Torch device (cpu/cuda)."
+    )
     return parser.parse_args()
 
 
 def _scatter(ax, coords, n, title) -> None:
-    ax.scatter(coords[:n, 0], coords[:n, 1], s=12, c=REAL_COLOR, alpha=0.5, label="Real")
-    ax.scatter(coords[n:, 0], coords[n:, 1], s=12, c=SYNTH_COLOR, alpha=0.5, label="Synthetic")
+    ax.scatter(
+        coords[:n, 0], coords[:n, 1], s=12, c=REAL_COLOR, alpha=0.5, label="Real"
+    )
+    ax.scatter(
+        coords[n:, 0], coords[n:, 1], s=12, c=SYNTH_COLOR, alpha=0.5, label="Synthetic"
+    )
     ax.set_title(title)
     ax.legend(frameon=False)
     ax.grid(alpha=0.2)
@@ -56,8 +75,9 @@ def main() -> None:
     set_seed(args.seed)
     device = torch.device(args.device)
 
+    weights_path = args.weights_dir / "generator_wgan.pth"
     generator = Generator().to(device)
-    generator.load_state_dict(torch.load(args.weights, map_location=device))
+    generator.load_state_dict(torch.load(weights_path, map_location=device))
     generator.eval()
 
     windows, _ = load_price_windows()
@@ -70,8 +90,8 @@ def main() -> None:
         synthetic = generator(z).cpu().numpy()
 
     combined = np.concatenate([real, synthetic], axis=0)
-    pca_coords, explained = pca_2d(combined)
-    tsne_coords = tsne_2d(combined, seed=args.seed)
+    pca_coords, explained = pca_analysis(combined)
+    tsne_coords = tsne_analysis(combined, seed=args.seed)
     metrics = summary_metrics(real, synthetic)
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -98,9 +118,11 @@ def main() -> None:
             writer.writerow([key, f"{value:.4f}"])
 
     print(f"PCA PC1 explained variance: {explained[0] * 100:.1f}%")
-    print(f"Step-to-step std  real: {metrics['step_to_step_std_real']:.4f}  "
-          f"synthetic: {metrics['step_to_step_std_synthetic']:.4f}  "
-          f"ratio: {metrics['step_to_step_ratio']:.2f}x")
+    print(
+        f"Step-to-step std  real: {metrics['step_to_step_std_real']:.4f}  "
+        f"synthetic: {metrics['step_to_step_std_synthetic']:.4f}  "
+        f"ratio: {metrics['step_to_step_ratio']:.2f}x"
+    )
     print(f"Wrote figures + metrics to {args.output_dir}/")
 
 
